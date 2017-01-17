@@ -1,0 +1,124 @@
+#!/usr/bin/env python3.5
+
+import catalog
+import curses
+
+def drawmenu(leftwin, currently_active):
+    """Draw the lefthand menu.
+
+    :currently_active:
+        The index of the host that is currently displayed.
+    """
+    leftwin.clear()
+    h = sorted(hosts, key=str.lower)[:19]
+    offset = 0
+
+    if currently_active > 14:
+        # FIXME: Will break if they have more than 35 hosts
+        h = sorted(hosts, key=str.lower)[15:]
+        offset = 15
+
+    for i, host in enumerate(h):
+        attr = curses.A_NORMAL
+        if i+offset == currently_active:
+            attr = attr | curses.A_BOLD
+        if not hosts[host]['reviewed']:
+            attr = attr | curses.A_UNDERLINE
+        display = '%s. %s' % (i+offset+1, host)
+        leftwin.addstr(i+1,1,display[:18], attr)
+    leftwin.box()
+    leftwin.refresh()
+
+
+def drawhost(rightwin, host_index):
+    """Draw the host window.
+
+    :host_index:
+        The index of the host that to display.
+    """
+    rightwin.clear()
+    rightwin.box()
+    # FIXME: Print stuff about the host here
+    host = hosts[sorted(hosts, key=str.lower)[host_index]]
+    line1 = 'Client Hostname: %(hostname)s' % host
+    line2 = 'Client IP(s): %(ip)s' % host
+    line3 = 'Client MAC(s): %(ip)s' % host
+    rightwin.addstr(1, 2, line1[:55])
+    rightwin.addstr(2, 2, line2[:55])
+    rightwin.addstr(3, 2, line3[:55])
+    rightwin.refresh()
+
+
+def statusbar(status, text):
+    """Write text on the status bar.
+    """
+    text = text.replace('\n', ' ')[:78]
+    status.clear()
+    status.addstr(0, 0, text)
+    status.refresh()
+
+
+def main(stdscr):
+    """Main program execution loop
+    """
+    title = 'Network Cataloger - Manage Hosts - %s Known Hosts' % len(hosts)
+
+    # Setup the screen parameters
+    stdscr.clear()
+    curses.halfdelay(2)     # Wait 200ms for user input
+    curses.curs_set(False)  # Hide the cursor
+
+    # Draw the basic screen structure
+    screen = stdscr.subwin(25, 80, 0, 0)
+    screen.box()
+    screen.addstr(1, 2, title[:78])
+    screen.hline(2, 1, curses.ACS_HLINE, 77)
+    screen.refresh()
+    leftwin = screen.subwin(20, 20, 3, 1)
+    rightwin = screen.subwin(20, 57, 3, 21)
+    status = screen.subwin(1, 76, 23, 2)
+
+    drawmenu(leftwin, 0)
+    drawhost(rightwin, 0)
+    statusbar(status, 'Ready!')
+
+    current_host = 0
+
+    while True: 
+        try:
+            event = stdscr.getkey() 
+
+            if event == 'KEY_PPAGE':
+                if current_host > 0:
+                    current_host -= 1
+                drawmenu(leftwin, current_host)
+                drawhost(rightwin, current_host)
+            elif event == 'KEY_NPAGE':
+                if current_host < len(hosts) - 1:
+                    current_host += 1
+                drawmenu(leftwin, current_host)
+                drawhost(rightwin, current_host)
+                statusbar(status, str(current_host))
+            elif event == '^L':
+                stdscr.refresh()
+            elif event == 'q':
+                break
+            else:
+                statusbar(status, "Unknown key: '%s'" % event)
+
+        except curses.error:
+            pass
+
+
+if __name__ == '__main__':
+    # Globally available objects
+    stdscr = curses.initscr()
+    hosts = catalog.hosts()
+
+    if curses.LINES < 25 or curses.COLS < 80:
+        curses.echo()
+        curses.endwin()
+        print('Sorry, this program only works with 80x25 terminals.')
+        exit()
+
+    curses.wrapper(main)

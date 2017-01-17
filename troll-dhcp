@@ -1,0 +1,22 @@
+#!/usr/bin/env python3.5
+"""Go through dhcpd.leases looking for new leases.
+"""
+import catalog
+
+current_lease = None
+
+with open('/var/db/dhcpd.leases') as dhcpd_leases:
+    for line in dhcpd_leases:
+        line = line.strip()
+        if line.startswith('lease'):
+            current_lease = {'ip': line.split()[1]}
+        elif line.startswith('hardware ethernet'):
+            current_lease['mac'] = line[-18:-1]
+        elif line.startswith('client-hostname'):
+            current_lease['hostname'] = line.split()[-1][1:-2]
+        elif line.startswith('}'):
+            if 'hostname' not in current_lease:
+                current_lease['hostname'] = 'Unknown'
+            if not catalog.get_host_by_mac(current_lease['mac']):
+                print('Adding %(mac)s (%(hostname)s/%(ip)s)' % current_lease)
+                catalog.add_host(reviewed=False, **current_lease)
