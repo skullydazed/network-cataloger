@@ -1,8 +1,9 @@
 #!/usr/bin/env python3.5
 """Go through dhcpd.leases looking for new leases.
 """
-import catalog
+from catalog import Catalog
 
+catalog = Catalog()
 current_lease = None
 
 with open('/var/db/dhcpd.leases') as dhcpd_leases:
@@ -20,3 +21,5 @@ with open('/var/db/dhcpd.leases') as dhcpd_leases:
             if not catalog.get_host_by_mac(current_lease['mac']):
                 print('Adding %(mac)s (%(hostname)s/%(ip)s)' % current_lease)
                 catalog.add_host(reviewed=False, **current_lease)
+
+catalog.commit()

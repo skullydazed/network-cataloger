@@ -1,7 +1,23 @@
 #!/usr/bin/env python3.5
 
-import catalog
 import curses
+from catalog import Catalog
+
+
+catalog = Catalog()
+
+
+def splithost(leftwin, rightwin, current_host):
+    host = catalog.hosts[current_host]
+    if len(host['ip']) == 1:
+        return False
+    for i, ip, mac in zip(range(len(host['ip'])), host['ip'], host['mac']):
+        newhost = '-'.join((host['hostname'], i))
+        catalog.del_host(host['hostname'])
+        for i, ip, mac in zip(range(len(host['ip'])), host['ip'], host['mac']):
+            newhost = '-'.join((host['hostname'], i))
+            catalog.add_host(newhost, ip, mac)
+
 
 def drawmenu(leftwin, currently_active):
     """Draw the lefthand menu.
@@ -10,22 +26,22 @@ def drawmenu(leftwin, currently_active):
         The index of the host that is currently displayed.
     """
     leftwin.clear()
-    h = sorted(hosts, key=str.lower)[:19]
+    h = catalog.hosts[:19]
     offset = 0
 
     if currently_active > 14:
         # FIXME: Will break if they have more than 35 hosts
-        h = sorted(hosts, key=str.lower)[15:]
+        h = catalog.hosts[15:]
         offset = 15
 
     for i, host in enumerate(h):
         attr = curses.A_NORMAL
         if i+offset == currently_active:
             attr = attr | curses.A_BOLD
-        if not hosts[host]['reviewed']:
+        if not catalog[host]['reviewed']:
             attr = attr | curses.A_UNDERLINE
         display = '%s. %s' % (i+offset+1, host)
-        leftwin.addstr(i+1,1,display[:18], attr)
+        leftwin.addstr(i+1, 1, display[:18], attr)
     leftwin.box()
     leftwin.refresh()
 
@@ -39,10 +55,10 @@ def drawhost(rightwin, host_index):
     rightwin.clear()
     rightwin.box()
     # FIXME: Print stuff about the host here
-    host = hosts[sorted(hosts, key=str.lower)[host_index]]
+    host = catalog[host_index]
     line1 = 'Client Hostname: %(hostname)s' % host
     line2 = 'Client IP(s): %(ip)s' % host
-    line3 = 'Client MAC(s): %(ip)s' % host
+    line3 = 'Client MAC(s): %(mac)s' % host
     rightwin.addstr(1, 2, line1[:55])
     rightwin.addstr(2, 2, line2[:55])
     rightwin.addstr(3, 2, line3[:55])
@@ -61,7 +77,7 @@ def statusbar(status, text):
 def main(stdscr):
     """Main program execution loop
     """
-    title = 'Network Cataloger - Manage Hosts - %s Known Hosts' % len(hosts)
+    title = 'Network Cataloger - Manage Hosts - %s Known Hosts' % len(catalog)
 
     # Setup the screen parameters
     stdscr.clear()
@@ -69,14 +85,19 @@ def main(stdscr):
     curses.curs_set(False)  # Hide the cursor
 
     # Draw the basic screen structure
-    screen = stdscr.subwin(25, 80, 0, 0)
+    screen = stdscr.subwin(24, 80, 0, 0)
     screen.box()
     screen.addstr(1, 2, title[:78])
-    screen.hline(2, 1, curses.ACS_HLINE, 77)
     screen.refresh()
-    leftwin = screen.subwin(20, 20, 3, 1)
-    rightwin = screen.subwin(20, 57, 3, 21)
-    status = screen.subwin(1, 76, 23, 2)
+    leftwin = screen.subwin(20, 20, 2, 1)
+    rightwin = screen.subwin(20, 57, 2, 21)
+    status = screen.subwin(1, 76, 22, 2)
+    stdscr.addstr(24, 0, "PgUp/PgDn:", curses.A_BOLD)
+    stdscr.addstr("Change Host")
+    stdscr.addstr("  Arrows:", curses.A_BOLD)
+    stdscr.addstr("Select Field")
+    stdscr.addstr("  F6:", curses.A_BOLD)
+    stdscr.addstr("Split Host")
 
     drawmenu(leftwin, 0)
     drawhost(rightwin, 0)
@@ -94,11 +115,12 @@ def main(stdscr):
                 drawmenu(leftwin, current_host)
                 drawhost(rightwin, current_host)
             elif event == 'KEY_NPAGE':
-                if current_host < len(hosts) - 1:
+                if current_host < len(catalog) - 1:
                     current_host += 1
                 drawmenu(leftwin, current_host)
                 drawhost(rightwin, current_host)
-                statusbar(status, str(current_host))
+            elif event == 'KEY_F(6)':
+                splithost(leftwin, rightwin, current_host)
             elif event == '^L':
                 stdscr.refresh()
             elif event == 'q':
@@ -113,7 +135,6 @@ def main(stdscr):
 if __name__ == '__main__':
     # Globally available objects
     stdscr = curses.initscr()
-    hosts = catalog.hosts()
 
     if curses.LINES < 25 or curses.COLS < 80:
         curses.echo()
